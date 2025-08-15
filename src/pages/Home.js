@@ -1,5 +1,6 @@
 // src/pages/Home.js
 import "./Home.css";
+import { Link } from "react-router-dom";
 
 export default function Home() {
   return (
@@ -11,10 +12,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ✅ 使用说明：
-          1) 将下面四个 <a> 的 href 替换为你的真实链接；
-          2) 默认新开标签页（target="_blank"），想本页打开改为 "_self"；
-      */}
       <section className="grid" role="navigation" aria-label="聚合入口">
         {/* 选项卡 1 */}
         <a
@@ -51,21 +48,19 @@ export default function Home() {
           <span className="desc">你的知识库或教程页。</span>
         </a>
 
-        {/* 选项卡 4 */}
-        <a
+        {/* 选项卡 4 -> 改为跳 CozeRunner 页面 */}
+        <Link
           className="tab"
-          href="https://example.com/agent-d"
-          target="_blank"
-          rel="noopener noreferrer"
+          to="/coze-runner"
         >
           <span className="icon" aria-hidden="true">🧭</span>
-          <span className="name">导航页·Agent D</span>
-          <span className="desc">更多链接与分类导航。</span>
-        </a>
+          <span className="name">Coze API 测试</span>
+          <span className="desc">输入链接调用 API 并展示结果。</span>
+        </Link>
       </section>
 
       <footer className="footer">
-       
+        {/* 这里可以加版权信息或其他内容 */}
       </footer>
     </main>
   );
