@@ -48,16 +48,41 @@
   margin-bottom: 12px;
 }
 
+/* 普通正文展示：无滚动、非代码块、正常白底黑字 */
 .coze-result {
-  background: #0b0f17;
-  color: #e5e7eb;
-  padding: 12px;
-  border-radius: 8px;
-  overflow: auto;
-  max-height: 420px;
-  font-size: 13px;
-  line-height: 1.5;
+  background: transparent !important; /* 避免黑底 */
+  color: inherit !important;          /* 继承父级颜色（通常黑/深灰） */
+  padding: 0;                         /* 去掉大内边距 */
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+
+  /* 正文排版 */
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC",
+               "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+  white-space: pre-wrap;              /* 保留换行/空格 */
+  word-break: break-word;             /* 长词/URL 可换行 */
+  overflow: visible;                  /* 不出现内部滚动条 */
+  max-height: none;
 }
+
+/* 容器卡片保持干净白底 */
+.coze-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+/* 页面正文默认黑字白底（以防全局主题把文字反色） */
+body, .coze-wrap {
+  background: #fff;
+  color: #222;
+}
+
 
 /* 响应式：小屏时垂直布局 */
 @media (max-width: 600px) {

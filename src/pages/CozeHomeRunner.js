@@ -1,65 +1,37 @@
+// src/pages/CozeHomeRunner.js
 import React, { useRef, useState } from "react";
 import "./CozeRunner.css";
 
-export default function CozeRunner() {
-  // ================ 可调参数 ================
-  const REVEAL_INTERVAL_MS = 60;  // 每个片段显示间隔
-  const MIN_CHUNK_CHARS = 24;     // 片段最小长度
-  const MAX_CHUNK_CHARS = 64;     // 片段最大长度
+export default function CozeHomeRunner() {
+  const REVEAL_INTERVAL_MS = 60;
+  const MIN_CHUNK_CHARS = 24;
+  const MAX_CHUNK_CHARS = 64;
   const DEBUG = true;
 
-  // ================ UI 状态 ================
-  const [url, setUrl] = useState("");
+  const [homeUrl, setHomeUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
-  const [link, setLink] = useState("");
-  const [chunks, setChunks] = useState([]);   // 纯 JS：不写泛型
+  const [chunks, setChunks] = useState([]);
   const [streamRaw, setStreamRaw] = useState("");
 
-  // ================ 运行期引用 ================
   const abortRef = useRef(null);
-  const fullTextRef = useRef("");      // 已累计的完整文本
-  const queueRef = useRef([]);         // 待显示片段
-  const tickingRef = useRef(false);    // 是否正在逐段显示
-  const nodeKeyRef = useRef("");       // 当前节点 key（node_id|node_title）
+  const fullTextRef = useRef("");
+  const queueRef = useRef([]);
+  const tickingRef = useRef(false);
 
-  // =============== 工具函数：解析 & 切片 ===============
+  const nextPaint = () => new Promise(requestAnimationFrame);
+
   function tryJSON(str) {
-      if (typeof str !== "string") return str;
-      const raw = str.trim();
-      if (!raw) return str;
-
-      // 先走一次正常解析
-      try { return JSON.parse(raw); } catch {}
-
-      // ------ 容错修补：常见的 content 未闭合 ------
-      let fixed = raw;
-
-      // 情形A：在 "content":"{...<缺失> 之后，直接出现 ,"content_type"
-      // 例： ... "urls":"https://...\"content_type":"text"
-      // 把 \\"content_type" 修成 "}","content_type"
-      fixed = fixed.replace(/\\"content_type"/, '"},"content_type"');
-
-      // 情形B：更加保守：在 "content":"{ ... } 之前缺了结束引号
-      // 把  "content":"{  ... }\"content_type"
-      // 修成 "content":"{ ... }","content_type"
-      fixed = fixed.replace(
-        /"content":"\{([^]*?)\}\\"content_type"/,   // [^]* 跨行匹配
-        '"content":"{$1}","content_type"'
-      );
-
-      // 还有些返回把 cotent 拼错了（已在 extractPayload 里兼容，这里不处理）
-
-      try { return JSON.parse(fixed); } catch {}
-      // 仍解析失败就原样返回，让上层按字符串处理
-      return str;
+    if (typeof str !== "string") return str;
+    const s = str.trim();
+    if (!s || (!s.startsWith("{") && !s.startsWith("["))) return str;
+    try { return JSON.parse(s); } catch { return str; }
   }
 
-  // 把文本按句子/换行切片；必要时做长度二次切分
   function sliceTextIntoChunks(text) {
     if (!text) return [];
-    const parts = text.split(/([。！？!?；;…\n\r])/); // 捕获分隔符
+    const parts = text.split(/([。！？!?；;…\n\r])/);
     const segs = [];
     for (let i = 0; i < parts.length; i += 2) {
       const content = parts[i] || "";
@@ -70,7 +42,6 @@ export default function CozeRunner() {
       if (piece.length <= MAX_CHUNK_CHARS) {
         segs.push(piece);
       } else {
-        // 二次切分，优先软边界
         let tmp = piece;
         const softChars = /([，,、\s])/;
         while (tmp.length > MAX_CHUNK_CHARS) {
@@ -89,8 +60,6 @@ export default function CozeRunner() {
         if (tmp) segs.push(tmp);
       }
     }
-
-    // 合并过短片段，避免太碎
     const merged = [];
     for (let i = 0; i < segs.length; i++) {
       const cur = segs[i];
@@ -103,7 +72,6 @@ export default function CozeRunner() {
     return merged;
   }
 
-  // 最长公共前缀，用来找“新增部分”
   function lcp(a, b) {
     const n = Math.min(a.length, b.length);
     let i = 0;
@@ -111,13 +79,11 @@ export default function CozeRunner() {
     return i;
   }
 
-  // 把新文本的“增量”切片并入队
   function enqueueNewDelta(newFull) {
     const prev = fullTextRef.current;
     const start = lcp(prev, newFull);
     const delta = newFull.slice(start);
     if (!delta) return;
-
     const segs = sliceTextIntoChunks(delta);
     if (segs.length) {
       queueRef.current.push(...segs);
@@ -126,11 +92,9 @@ export default function CozeRunner() {
     }
   }
 
-  // 启动逐段显示循环
   function startRevealLoop() {
     if (tickingRef.current) return;
     tickingRef.current = true;
-
     const tick = () => {
       if (queueRef.current.length === 0) {
         tickingRef.current = false;
@@ -140,70 +104,47 @@ export default function CozeRunner() {
       setChunks((arr) => [...arr, next]);
       setTimeout(tick, REVEAL_INTERVAL_MS);
     };
-
     setTimeout(tick, REVEAL_INTERVAL_MS);
   }
 
-  // =============== 解析 SSE payload ===============
   function extractPayload(dataObj) {
     let inner = dataObj?.content ?? dataObj?.cotent ?? "";
     inner = tryJSON(inner);
-
     const _title = inner?.title ?? dataObj?.title ?? "";
-    const _urls  = inner?.urls  ?? dataObj?.urls  ?? "";
-    let   _text  = inner?.cotent ?? inner?.content ?? inner ?? "";
-
+    let _text = inner?.cotent ?? inner?.content ?? inner ?? "";
     if (typeof _text !== "string") {
       try { _text = JSON.stringify(_text, null, 2); } catch {}
     }
-
-    return {
-      node_id: dataObj?.node_id,
-      node_title: dataObj?.node_title,
-      node_type: dataObj?.node_type,
-      node_is_finish: !!dataObj?.node_is_finish,
-      title: _title,
-      urls: _urls,
-      text: _text,
-    };
+    return { title: _title, text: _text };
   }
 
-  function nodeKeyOf(p) {
-    return p.node_id || p.node_title || "unknown";
-  }
-
-  // =============== 主流程（流式读取） ===============
   async function handleRunStream(e) {
     e.preventDefault();
     setLoading(true);
     setError("");
     setTitle("");
-    setLink("");
     setChunks([]);
     setStreamRaw("");
     fullTextRef.current = "";
     queueRef.current = [];
     tickingRef.current = false;
-    nodeKeyRef.current = "";
 
-    try {
-      new URL(url);
-    } catch {
-      setLoading(false);
-      setError("请输入有效链接");
-      return;
-    }
+    try { new URL(homeUrl); } catch { setLoading(false); setError("请输入有效的 home_url"); return; }
 
     const ac = new AbortController();
     abortRef.current = ac;
 
-    const nextPaint = () => new Promise(requestAnimationFrame);
-
     try {
-      const r = await fetch("http://localhost:3000/api/coze/run-workflow/stream", {
+      const r = await fetch("http://localhost:3000/api/coze/home/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: url /* 如需：, bot_id:'xxx', app_id:'yyy' */ }),
+        body: JSON.stringify({
+          home_url: homeUrl,
+          // 可选覆盖：
+          // workflow_id: "7538006170724941870",
+          // bot_id: "7342*********",
+          // app_id: "7439*********",
+        }),
         signal: ac.signal,
       });
       if (!r.ok) {
@@ -223,11 +164,9 @@ export default function CozeRunner() {
 
         const lines = frame.split(/\r?\n/);
         let eventName = "message";
-        let idStr = null;
         const dataLines = [];
         for (const ln of lines) {
           if (ln.startsWith("event:")) eventName = ln.slice(6).trim();
-          else if (ln.startsWith("id:")) idStr = ln.slice(3).trim();
           else if (ln.startsWith("data:")) dataLines.push(ln.slice(5).trim());
         }
 
@@ -244,28 +183,15 @@ export default function CozeRunner() {
             break;
           case "Done":
           case "done":
-            // 不中断，等 EOF
-            await nextPaint();
+            await nextPaint(); // 不在 Done 时中断，等 EOF
             break;
           default: {
-            const parsed = extractPayload(
+            const { title: t, text } = extractPayload(
               (eventName === "Message" || eventName === "message") ? dataObj :
               (typeof dataObj === "object" ? dataObj : { content: dataStr })
             );
-
-            if (parsed.title) setTitle(parsed.title);
-            if (parsed.urls)  setLink(parsed.urls);
-
-            const key = nodeKeyOf(parsed);
-            // 如果你希望 End 出现时清屏，取消注释下两行：
-            // if (nodeKeyRef.current && key !== nodeKeyRef.current && (parsed.node_title || parsed.node_type || "").toLowerCase() === "end") {
-            //   setChunks([]); fullTextRef.current = "";
-            // }
-            nodeKeyRef.current = key;
-
-            const newFull = parsed.text || "";
-            if (newFull) enqueueNewDelta(newFull);
-
+            if (t) setTitle(t);
+            if (text) enqueueNewDelta(text);
             await nextPaint();
           }
         }
@@ -275,7 +201,6 @@ export default function CozeRunner() {
         const { value, done } = await reader.read();
         if (done) { if (buffer) await flushFrame(buffer); break; }
         buffer += decoder.decode(value, { stream: true });
-
         const frames = buffer.split(/\r?\n\r?\n/);
         buffer = frames.pop() || "";
         for (const fr of frames) await flushFrame(fr);
@@ -293,20 +218,19 @@ export default function CozeRunner() {
     abortRef.current = null;
   }
 
-  // ================== UI ==================
   return (
     <main className="coze-wrap">
-      <h1 className="coze-title">Coze 工作流调用（流式分段输出）</h1>
-      <p className="coze-subtitle">按句子/标点切片逐段展示；新增内容只追加显示。</p>
+      <h1 className="coze-title">主页抓取工作流（流式）</h1>
+      <p className="coze-subtitle">输入抖音主页链接，分段显示工作流输出。</p>
 
       <form className="coze-form" onSubmit={handleRunStream}>
         <input
           className="coze-input"
           type="url"
           required
-          placeholder="例如：https://www.douyin.com/video/7522..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.douyin.com/user/..."
+          value={homeUrl}
+          onChange={(e) => setHomeUrl(e.target.value)}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           <button className="coze-btn" type="submit" disabled={loading}>
@@ -320,21 +244,15 @@ export default function CozeRunner() {
 
       {error && <div className="coze-error">错误：{error}</div>}
 
-      {(title || link) && (
+      {title && (
         <section className="coze-card" style={{ marginTop: 12 }}>
-          {title && <p><b>标题：</b>{title}</p>}
-          {link && (
-            <p><b>链接：</b>
-              <a href={link} target="_blank" rel="noreferrer">{link}</a>
-            </p>
-          )}
+          <p><b>标题：</b>{title}</p>
         </section>
       )}
+
       <section className="coze-card" style={{ marginTop: 12 }}>
         <h3>正文</h3>
-        <div className="coze-result">
-          {chunks.join("")}
-        </div>
+        <div className="coze-result">{chunks.join("")}</div>
       </section>
 
       {DEBUG && streamRaw && (

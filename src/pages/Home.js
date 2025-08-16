@@ -37,16 +37,14 @@ export default function Home() {
         </a>
 
         {/* 选项卡 3 */}
-        <a
+        <Link
           className="tab"
-          href="https://example.com/agent-c"
-          target="_blank"
-          rel="noopener noreferrer"
+            to="/douyin-homepage"
         >
           <span className="icon" aria-hidden="true">📚</span>
-          <span className="name">知识库·Agent C</span>
-          <span className="desc">你的知识库或教程页。</span>
-        </a>
+          <span className="name">网络大V首页分析</span>
+          <span className="desc">一键分析对标账户</span>
+        </Link>
 
         {/* 选项卡 4 -> 改为跳 CozeRunner 页面 */}
         <Link
@@ -54,7 +52,7 @@ export default function Home() {
           to="/coze-runner"
         >
           <span className="icon" aria-hidden="true">🧭</span>
-          <span className="name">Coze API 测试</span>
+          <span className="name">一键提取抖音爆款内容</span>
           <span className="desc">输入链接调用 API 并展示结果。</span>
         </Link>
       </section>
