@@ -200,7 +200,7 @@ export default function CozeRunner() {
     const nextPaint = () => new Promise(requestAnimationFrame);
 
     try {
-      const r = await fetch("http://localhost:3000/api/coze/run-workflow/stream", {
+      const r = await fetch("http://guiqiantec.com:3010/api/coze/run-workflow/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: url /* 如需：, bot_id:'xxx', app_id:'yyy' */ }),
